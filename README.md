@@ -1,4 +1,4 @@
-# hexagonal_nodejs
+# hexagonal_nodejs - ptBr
 
 🏗️ Estrutura de Pastas
 src/
@@ -185,3 +185,208 @@ Pode testar o caso de uso sem banco nem Express
 Pode mudar o banco (Mongo, PostgreSQL, arquivo) sem tocar no domínio
 
 Pode fazer REST, GraphQL, CLI, fila — todos chamam o mesmo core
+
+
+# hexagonal_nodejs - en
+
+Claro! Aqui está a tradução completa para o inglês:
+
+---
+
+🏗️ **Folder Structure**
+
+```
+src/
+│
+├── application/               # Use cases (application services)
+│   ├── use-cases/
+│
+├── domain/                    # Entities and business rules
+│   ├── entities/
+│   └── repositories/          # Interfaces (ports) for domain access
+│
+├── infrastructure/           # Adapters: database, external services, etc.
+│   ├── persistence/
+│   └── http/
+│
+├── config/                   # Application configurations
+│
+└── index.ts                  # Application entry point
+```
+
+---
+
+📦 **Example POST request**  
+**URL:** `http://localhost:3000/students`  
+**Body:**
+```json
+{
+  "name": "Maria",
+  "schoolId": "1234"
+}
+```
+
+---
+
+🧠 **Core Concept of Hexagonal Architecture**  
+The main idea is to separate the core of the application (business rules) from the parts that change more frequently, such as the database, HTTP interface, external services, UI, etc.
+
+This separation is achieved using **Ports** and **Adapters**.
+
+---
+
+🧩 **Components of Hexagonal Architecture**  
+
+Imagine the application as a hexagon, where:
+
+- **Domain**: Where business rules live. Simple, pure, with no external dependencies.  
+- **Application**: Orchestrates the use cases. Uses domain interfaces.  
+- **Ports**: Interfaces that define how the domain communicates with the outside world.  
+- **Adapters**: Concrete implementations of those ports: database, APIs, CLI, etc.
+
+---
+
+🏗️ **Explaining the School Registration Project**  
+Let’s use a real example from your project: registering students in a school.
+
+---
+
+**1. Entity (Domain)**  
+📄 `src/domain/entities/Student.ts`
+```ts
+export class Student {
+  constructor(
+    public id: string,
+    public name: string,
+    public schoolId: string
+  ) {}
+}
+```
+This class represents a student. It knows nothing about the database or API. It lives in the pure world of business logic.
+
+---
+
+**2. Port (Repository Interface)**  
+📄 `src/domain/repositories/StudentRepository.ts`
+```ts
+import { Student } from "../entities/Student";
+
+export interface StudentRepository {
+  save(student: Student): Promise<void>;
+  findById(id: string): Promise<Student | null>;
+  findAll(): Promise<Student[]>;
+}
+```
+This interface defines the contract that any student repository must follow.
+
+---
+
+**3. Use Case (Application Service)**  
+📄 `src/application/use-cases/CreateStudent.ts`
+```ts
+import { Student } from "../../domain/entities/Student";
+import { StudentRepository } from "../../domain/repositories/StudentRepository";
+
+export class CreateStudent {
+  constructor(private studentRepo: StudentRepository) {}
+
+  async execute(name: string, schoolId: string): Promise<void> {
+    const student = new Student(
+      Math.random().toString(36).substring(2, 9),
+      name,
+      schoolId
+    );
+    await this.studentRepo.save(student);
+  }
+}
+```
+This is where the logic of "registering a student" lives: it creates a student and saves it in the repository. That’s it. Everything is decoupled.
+
+---
+
+**4. Output Adapter (Repository Implementation)**  
+📄 `src/infrastructure/persistence/InMemoryStudentRepository.ts`
+```ts
+import { Student } from "../../../domain/entities/Student";
+import { StudentRepository } from "../../../domain/repositories/StudentRepository";
+
+export class InMemoryStudentRepository implements StudentRepository {
+  private students: Student[] = [];
+
+  async save(student: Student): Promise<void> {
+    this.students.push(student);
+  }
+
+  async findById(id: string): Promise<Student | null> {
+    return this.students.find(s => s.id === id) || null;
+  }
+
+  async findAll(): Promise<Student[]> {
+    return this.students;
+  }
+}
+```
+This adapter uses in-memory storage to store students — but it could be swapped for MongoDB or Postgres without changing anything in the use case.
+
+---
+
+**5. Input Adapter (HTTP API)**  
+📄 `src/infrastructure/http/student.routes.ts`
+```ts
+import express from "express";
+import { InMemoryStudentRepository } from "../persistence/InMemoryStudentRepository";
+import { CreateStudent } from "../../application/use-cases/CreateStudent";
+
+const router = express.Router();
+const studentRepo = new InMemoryStudentRepository();
+const createStudent = new CreateStudent(studentRepo);
+
+router.post("/", async (req, res) => {
+  const { name, schoolId } = req.body;
+  await createStudent.execute(name, schoolId);
+  res.status(201).send({ message: "Student created!" });
+});
+
+export default router;
+```
+This is the adapter that translates HTTP requests into use case calls. It receives `POST /students`, extracts the data, calls `CreateStudent`, and responds with a `201`.
+
+---
+
+**6. Application Entry Point**  
+📄 `src/index.ts`
+```ts
+import express from "express";
+import studentRoutes from "./infrastructure/http/student.routes";
+
+const app = express();
+app.use(express.json());
+app.use("/students", studentRoutes);
+
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
+```
+This is where everything starts. Express loads the input adapters (routes), which connect to the use cases, which in turn interact with output adapters (repositories) that implement the ports.
+
+---
+
+🚀 **Full Request Cycle**
+
+1. Client sends `POST /students`  
+2. `student.routes.ts` calls the use case  
+3. `CreateStudent` creates the student entity  
+4. It uses `studentRepo.save()` (interface)  
+5. The implementation (`InMemoryStudentRepository`) stores the data  
+
+**Everything works without the domain knowing anything about HTTP or database.**
+
+---
+
+🧪 **Clear Advantages**
+
+- You can test the use case without a database or Express  
+- You can change the database (Mongo, PostgreSQL, file, etc.) without touching the domain  
+- You can implement REST, GraphQL, CLI, queues — all calling the same core
+
